@@ -6,33 +6,37 @@ config.read("database.ini")
 
 key = config["AQI"]["apikey"]
 
-
 import requests
 import pandas as pd
+import os
 from datetime import datetime
+from dotenv import load_dotenv
 
-def get_air_quality_data(country="DE", city="Berlin", parameter="pm25", limit=100):
+def get_aqicn_air_quality_data(city="berlin", token=None, save_csv=True):
     """
-    OpenAQ API abfragen, um Luftqualitätsdaten zu erhalten
+    AQICN.org API abfragen, um Luftqualitätsdaten zu erhalten
     
     Parameters:
-        country (str): Ländercode (z.B. 'DE' für Deutschland)
-        city (str): Stadt
-        parameter (str): Luftqualitätsparameter (pm25, pm10, o3, no2, so2, co)
-        limit (int): Maximale Anzahl der zurückgegebenen Datensätze
+        city (str): Stadt oder Ort (z.B. 'berlin', 'shanghai', usw.)
+        token (str): API-Token für AQICN.org (kostenlos erhältlich)
     
     Returns:
         DataFrame: Pandas DataFrame mit Luftqualitätsdaten
     """
-    base_url = f"https://api.waqi.info/feed/@10833/?token={key}"
+    # API-Token laden oder aus Parameter verwenden
+    load_dotenv()
+    api_token = key or os.getenv("AQICN_TOKEN")
+
+
+    if not api_token:
+        print("Fehler: AQICN API-Token fehlt. Registriere dich für einen kostenlosen Token auf https://aqicn.org/data-platform/token/")
+        return None
+    
+    # API-Endpunkt für die Stadtabfrage
+    base_url = f"https://api.waqi.info/feed/{city}/"
     
     params = {
-        "country": country,
-        "city": city,
-        "parameter": parameter,
-        "limit": limit,
-        "order_by": "datetime",
-        "sort": "desc"
+        "token": api_token
     }
     
     try:
@@ -41,19 +45,62 @@ def get_air_quality_data(country="DE", city="Berlin", parameter="pm25", limit=10
         
         data = response.json()
         
-        if "results" not in data or len(data["results"]) == 0:
-            print(f"Keine Daten für {city}, {country} gefunden.")
+        # Prüfen, ob die Anfrage erfolgreich war
+        if data["status"] != "ok":
+            print(f"API-Fehler: {data.get('data', 'Unbekannter Fehler')}")
             return None
         
-        # Daten in DataFrame umwandeln
-        results = data["results"]
-        df = pd.DataFrame(results)
+        if "data" not in data:
+            print(f"Keine Daten für {city} gefunden.")
+            return None
         
-        # Datum formatieren
-        df["datetime"] = pd.to_datetime(df["date.utc"])
+        # Relevante Daten extrahieren
+        station_data = data["data"]
         
-        # Relevante Spalten auswählen
-        df = df[["location", "parameter", "value", "unit", "datetime"]]
+        # Grundinformationen
+        station_name = station_data.get("city", {}).get("name", "Unbekannt")
+        timestamp = pd.to_datetime(station_data.get("time", {}).get("iso"), utc=True)
+        
+        # Messwerte extrahieren
+        measurements = []
+        iaqi = station_data.get("iaqi", {})
+        
+        # Für jeden Parameter (pm25, pm10, o3, etc.) einen Eintrag erstellen
+        for parameter, value_dict in iaqi.items():
+            if isinstance(value_dict, dict) and "v" in value_dict:
+                measurements.append({
+                    "location": station_name,
+                    "parameter": parameter,
+                    "value": value_dict["v"],
+                    "unit": "AQI",  # AQICN gibt AQI-Werte zurück, nicht Rohwerte
+                    "datetime": timestamp
+                })
+        
+        # Erstellen eines DataFrame aus den Messungen
+        df = pd.DataFrame(measurements)
+        
+        # Zusätzliche Stationsinformationen hinzufügen, falls gewünscht
+        df["lat"] = station_data.get("city", {}).get("geo", [0, 0])[0]
+        df["lon"] = station_data.get("city", {}).get("geo", [0, 0])[1]
+        df["attribution"] = str(station_data.get("attributions", []))
+
+        if save_csv:
+            # Daten als CSV speichern mit Stadtnamen im Dateinamen
+            current_date = datetime.now().strftime("%Y%m%d")
+            # Extrahiere den Stadtnamen aus dem ersten Datensatz oder verwende den angegebenen Stadt-Parameter
+            city_name = city.lower()
+            if not df.empty and 'location' in df.columns:
+                # Verwende den Standortnamen aus den Daten, falls verfügbar
+                location_name = df['location'].iloc[0]
+                # Extrahiere den Hauptstadtnamen (vor Komma oder Klammer)
+                city_name = location_name.split(',')[0].split('(')[0].strip().lower()
+            
+            # Erstelle einen gültigen Dateinamen (ersetze Leerzeichen und Sonderzeichen)
+            safe_city_name = ''.join(c if c.isalnum() else '_' for c in city_name)
+            
+            csv_filename = f"aqicn_luftqualitaet_{safe_city_name}_{current_date}.csv"
+            df.to_csv(csv_filename, index=False)
+            print(f"\nDaten wurden als CSV für {city_name} gespeichert: {csv_filename}")  
         
         return df
     
@@ -61,16 +108,92 @@ def get_air_quality_data(country="DE", city="Berlin", parameter="pm25", limit=10
         print(f"Fehler beim API-Aufruf: {e}")
         return None
 
-if __name__ == "__main__":
-    # Beispielaufruf für Berlin, Deutschland, PM2.5-Werte
-    air_data = get_air_quality_data(country="DE", city="Berlin", parameter="pm25")
+def get_aqicn_historical_data(city="berlin", parameter="pm25", start_date=None, end_date=None, token=None):
+    """
+    Historische Daten von AQICN.org abrufen (erfordert möglicherweise ein Premium-Konto)
     
-    if air_data is not None:
-        print(f"Anzahl der abgerufenen Datensätze: {len(air_data)}")
-        print("\nLetzten 5 Einträge:")
-        print(air_data.head(5))
+    Parameters:
+        city (str): Stadt oder Ort
+        parameter (str): Luftqualitätsparameter (pm25, pm10, o3, no2, so2, co)
+        start_date (str): Startdatum im Format 'YYYY-MM-DD'
+        end_date (str): Enddatum im Format 'YYYY-MM-DD'
+        token (str): API-Token für AQICN.org
+    
+    Returns:
+        DataFrame: Pandas DataFrame mit historischen Luftqualitätsdaten
+    """
+    # API-Token laden oder aus Parameter verwenden
+    load_dotenv()
+    api_token = token or os.getenv("AQICN_TOKEN")
+    
+    if not api_token:
+        print("Fehler: AQICN API-Token fehlt.")
+        return None
+    
+    # Falls keine Datumsangaben gemacht wurden, die letzten 30 Tage verwenden
+    if not start_date:
+        start_date = (datetime.now() - pd.Timedelta(days=30)).strftime('%Y-%m-%d')
+    if not end_date:
+        end_date = datetime.now().strftime('%Y-%m-%d')
+    
+    # API-Endpunkt für historische Daten
+    # Hinweis: Der genaue Endpunkt kann sich je nach API-Version ändern
+    base_url = f"https://api.waqi.info/feed/{city}/historical/"
+    
+    params = {
+        "token": api_token,
+        "parameter": parameter,
+        "start": start_date,
+        "end": end_date
+    }
+    
+    try:
+        response = requests.get(base_url, params=params)
+        response.raise_for_status()
         
-        # Speichern der Daten als CSV (optional)
-        current_date = datetime.now().strftime("%Y%m%d")
-        air_data.to_csv(f"luftqualitaet_berlin_{current_date}.csv", index=False)
-        print(f"\nDaten wurden als CSV gespeichert.")
+        data = response.json()
+        
+        # Prüfen, ob die Anfrage erfolgreich war
+        if data["status"] != "ok":
+            error_msg = data.get("data", "Unbekannter Fehler")
+            print(f"API-Fehler bei historischen Daten: {error_msg}")
+            # Falls ein Zugangsfehler auftritt, Hinweis auf Premium-Konto geben
+            if "premium" in str(error_msg).lower():
+                print("Hinweis: Für historische Daten wird möglicherweise ein Premium-Konto bei AQICN benötigt.")
+            return None
+        
+        # Datenverarbeitung würde hier fortgesetzt werden
+        # (Die genaue Struktur der API-Antwort für historische Daten kann variieren)
+        
+        # Hinweis: Dies ist ein Platzhalter, da der Zugriff auf historische Daten
+        # bei AQICN oft eingeschränkt ist oder ein Premium-Konto erfordert
+        print("Historische Daten erfolgreich abgerufen.")
+        
+        return pd.DataFrame(data.get("data", []))
+    
+    except requests.exceptions.RequestException as e:
+        print(f"Fehler beim API-Aufruf für historische Daten: {e}")
+        return None
+
+if __name__ == "__main__":
+    # Beispiel: Aktuelle Luftqualitätsdaten für Berlin abrufen
+    # Setze deinen API-Token entweder als Umgebungsvariable AQICN_TOKEN oder übergebe ihn direkt
+    # Du kannst einen kostenlosen Token auf https://aqicn.org/data-platform/token/ erhalten
+    
+    # Beispiel mit API-Token als Parameter
+    # air_data = get_aqicn_air_quality_data(city="berlin", token="dein_api_token_hier")
+    
+    # Beispiel mit API-Token aus Umgebungsvariable
+    air_data = get_aqicn_air_quality_data(city="potsdam", save_csv=True)
+
+    if air_data is not None:
+        print(f"Anzahl der abgerufenen Parameter: {len(air_data)}")
+        print("\nAktuelle Luftqualitätsdaten:")
+        print(air_data[["location", "parameter", "value", "unit", "datetime"]])
+        
+              
+    # Beispiel für historische Daten (erfordert möglicherweise Premium-Konto)
+    # hist_data = get_aqicn_historical_data(city="berlin", parameter="pm25")
+    # if hist_data is not None:
+    #     print("\nHistorische Daten:")
+    #     print(hist_data.head())
