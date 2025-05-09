@@ -86,7 +86,7 @@ def get_aqicn_air_quality_data(city="berlin", token=None, save_csv=True):
 
         if save_csv:
             # Daten als CSV speichern mit Stadtnamen im Dateinamen
-            current_date = datetime.now().strftime("%Y%m%d")
+            current_date = datetime.now().strftime("%Y%m%d") + " - " + datetime.now().strftime("%H%M")
             # Extrahiere den Stadtnamen aus dem ersten Datensatz oder verwende den angegebenen Stadt-Parameter
             city_name = city.lower()
             if not df.empty and 'location' in df.columns:
@@ -184,7 +184,7 @@ if __name__ == "__main__":
     # air_data = get_aqicn_air_quality_data(city="berlin", token="dein_api_token_hier")
     
     # Beispiel mit API-Token aus Umgebungsvariable
-    air_data = get_aqicn_air_quality_data(city="potsdam", save_csv=True)
+    air_data = get_aqicn_air_quality_data(city="berlin", save_csv=True)
 
     if air_data is not None:
         print(f"Anzahl der abgerufenen Parameter: {len(air_data)}")
