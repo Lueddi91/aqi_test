@@ -86,7 +86,7 @@ def get_aqicn_air_quality_data(city="berlin", token=None, save_csv=True):
 
         if save_csv:
             # Daten als CSV speichern mit Stadtnamen im Dateinamen
-            current_date = datetime.now().strftime("%Y%m%d") + " - " + datetime.now().strftime("%H%M")
+            current_date = datetime.now().strftime("%Y%m%d") + "-" + datetime.now().strftime("%H%M")
             # Extrahiere den Stadtnamen aus dem ersten Datensatz oder verwende den angegebenen Stadt-Parameter
             city_name = city.lower()
             if not df.empty and 'location' in df.columns:
