@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import configparser
 
 config = configparser.ConfigParser()
@@ -10,7 +12,6 @@ import requests
 import pandas as pd
 import os
 from datetime import datetime
-from dotenv import load_dotenv
 
 def get_aqicn_air_quality_data(city="berlin", token=None, save_csv=True):
     """
@@ -24,9 +25,7 @@ def get_aqicn_air_quality_data(city="berlin", token=None, save_csv=True):
         DataFrame: Pandas DataFrame mit Luftqualitätsdaten
     """
     # API-Token laden oder aus Parameter verwenden
-    load_dotenv()
-    api_token = key or os.getenv("AQICN_TOKEN")
-
+    api_token = key 
 
     if not api_token:
         print("Fehler: AQICN API-Token fehlt. Registriere dich für einen kostenlosen Token auf https://aqicn.org/data-platform/token/")
