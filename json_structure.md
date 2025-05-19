@@ -8,12 +8,15 @@ TODO:
 [ ] profit!
 
 Ebene 0:
+
 - Datum
 
 Ebene 1:
+
 - Quelle: AQI, tankerkoenig, Wetter, windfinder(?)
 
 Ebene 2:
+
 - AQI:
     - Stadt/Ort
 - tankerkoenig:
@@ -24,6 +27,7 @@ Ebene 2:
     - Stadt/Ort
 
 Ebene 3:
+
 - AQI:Stadt
     - pm25
     - pm10
