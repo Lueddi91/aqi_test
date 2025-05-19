@@ -1,5 +1,11 @@
 ### Basic Structure
 
+TODO:
+[ ] define data structure in the code,
+[ ] define test cases
+[ ] ...
+[ ] profit!
+
 Ebene 0:
 - Datum
 
