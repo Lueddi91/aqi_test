@@ -1,6 +1,9 @@
 #!/usr/bin/python
 
 import configparser
+import json
+import pickle
+import sys
 
 config = configparser.ConfigParser()
 
@@ -13,7 +16,7 @@ import pandas as pd
 import os
 from datetime import datetime
 
-def get_aqicn_air_quality_data(city="berlin", token=None, save_csv=True):
+def get_aqicn_air_quality_data(city=None, token=None, save_csv=True):
     """
     AQICN.org API abfragen, um Luftqualitätsdaten zu erhalten
     
@@ -43,7 +46,8 @@ def get_aqicn_air_quality_data(city="berlin", token=None, save_csv=True):
         response.raise_for_status()  # Fehler auslösen, wenn Request nicht erfolgreich
         
         data = response.json()
-        
+        #print(data)
+
         # Prüfen, ob die Anfrage erfolgreich war
         if data["status"] != "ok":
             print(f"API-Fehler: {data.get('data', 'Unbekannter Fehler')}")
@@ -63,7 +67,7 @@ def get_aqicn_air_quality_data(city="berlin", token=None, save_csv=True):
         # Messwerte extrahieren
         measurements = []
         iaqi = station_data.get("iaqi", {})
-        
+
         # Für jeden Parameter (pm25, pm10, o3, etc.) einen Eintrag erstellen
         for parameter, value_dict in iaqi.items():
             if isinstance(value_dict, dict) and "v" in value_dict:
@@ -183,7 +187,12 @@ if __name__ == "__main__":
     # air_data = get_aqicn_air_quality_data(city="berlin", token="dein_api_token_hier")
     
     # Beispiel mit API-Token aus Umgebungsvariable
-    air_data = get_aqicn_air_quality_data(city="berlin", save_csv=True)
+    if len(sys.argv) > 1:
+        for arg in range(len(sys.argv)):
+            air_data = get_aqicn_air_quality_data(city=sys.argv[arg], save_csv=True)
+
+    else:
+        air_data = get_aqicn_air_quality_data(city="hamburg", save_csv=True)
 
     if air_data is not None:
         print(f"Anzahl der abgerufenen Parameter: {len(air_data)}")
