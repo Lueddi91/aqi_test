@@ -188,7 +188,7 @@ if __name__ == "__main__":
     
     # Beispiel mit API-Token aus Umgebungsvariable
     if len(sys.argv) > 1:
-        for arg in range(len(sys.argv)):
+        for arg in range(1, len(sys.argv)):
             air_data = get_aqicn_air_quality_data(city=sys.argv[arg], save_csv=True)
 
     else:
